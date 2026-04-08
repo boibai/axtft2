@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.pyc
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual env
+venv/
+.env/
+.env.*
+.venv/
+.env
+
+# Conda
+conda-meta/
+*.conda
+*.lock
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+logs/
+*.log
+
+# Data
+data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+app/test.ipynb
+*.pem
+
+models/
+
+.ipynb
+
+
+
+

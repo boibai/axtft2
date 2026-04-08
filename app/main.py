@@ -1,0 +1,67 @@
+import os, uuid
+from fastapi import FastAPI, Request
+from app.api.opensearch import router as opensearch_router
+from app.middleware.ip_whitelist import ip_whitelist_middleware
+from fastapi.middleware.cors import CORSMiddleware
+from app.core.logging import start_request_file_logging, stop_request_file_logging
+from app.core.config import LOG_DIR
+from FlagEmbedding import BGEM3FlagModel, FlagReranker
+
+app = FastAPI(title="Woongjin Error Log Analyze API")
+
+app.middleware("http")(ip_whitelist_middleware)
+
+def resolve_request_log_dir(path: str) -> str:
+    if path.endswith("/analyze/error_message"):
+        return os.path.join(LOG_DIR, "analyze/error")
+
+    if path.endswith("/analyze/anomaly"):
+        return os.path.join(LOG_DIR, "analyze/anomaly")
+
+    if path.endswith("/chat/message"):
+        return os.path.join(LOG_DIR, "chat/message")
+    return None
+
+@app.middleware("http")
+async def request_file_logger_middleware(request: Request, call_next):
+    
+    body = {}
+    if request.method in {"POST", "PUT", "PATCH"}:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+    thread_id = body.get("thread_id") or str(uuid.uuid4())[:8]
+
+    request.state.thread_id = thread_id
+    
+    rid = request.headers.get("x-request-id")
+    if not rid:
+        rid = str(uuid.uuid4())[:8]
+        
+    log_dir = resolve_request_log_dir(request.url.path)
+    if log_dir is not None:
+        start_request_file_logging(rid, log_dir, thread_id)
+
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        if log_dir is not None:
+            stop_request_file_logging(rid)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# @app.on_event("startup")
+# def startup_event():
+#     app.state.embedding_model = BGEM3FlagModel("BAAI/bge-m3", use_fp16=True,)
+#     app.state.reranker_model = FlagReranker("BAAI/bge-reranker-v2-m3", use_fp16=False,)
+
+app.include_router(opensearch_router)
