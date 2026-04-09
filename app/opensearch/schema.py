@@ -64,6 +64,7 @@ class GetIndexPropertiesResponse(BaseModel):
 class IndexErrorRequest(BaseModel):
     index_name: str
     date: str
+    filename : str
 
 class IndexErrorResponse(BaseModel):
     success: bool
@@ -96,4 +97,18 @@ class SearchErrorResponse(BaseModel):
     hybrid_count: int
     rerank_count: int
     results: list[SearchErrorItem]
+    message: str | None = None
+    
+
+class GetDocumentRequest(BaseModel):
+    index_name: str
+    doc_id: str
+
+
+class GetDocumentResponse(BaseModel):
+    success: bool
+    index_name: str
+    doc_id: str
+    found: bool
+    document: dict[str, Any] | None = None
     message: str | None = None

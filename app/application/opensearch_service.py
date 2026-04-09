@@ -150,11 +150,11 @@ def get_index_properties(client: OpenSearch, index_name: str) -> dict:
         }
         
 
-async def index_errors_service(client, index_name: str, date: str):
+async def index_errors_service(client, index_name: str, date: str, filename: str):
     try:
-        file_list = get_error_list(date)
-
-        if not file_list:
+        # file_list = get_error_list(date)
+        
+        if not filename:
             return {
                 "success": True,
                 "index_name": index_name,
@@ -165,12 +165,21 @@ async def index_errors_service(client, index_name: str, date: str):
                 "message": "No files found",
             }
 
-        files = get_error_file(date, file_list)
+        files = get_error_file(date, [filename])
 
-        search_docs = [
-            build_search_doc(file=f, date=date, filename=file_list[i])
-            for i, f in enumerate(files)
-        ]
+        search_docs = []
+
+        for i, f in enumerate(files):
+            output_json = f.get("output_json") or {}
+            cause_list = output_json.get("causeList") or []
+
+            if not cause_list:
+                continue
+
+            search_docs.append(
+                build_search_doc(file=f, date=date, filename=[filename][i])
+            )
+
 
         vector_text_list = [doc["vector_text"] for doc in search_docs]
         embeddings = await embed_texts(vector_text_list)
@@ -179,12 +188,10 @@ async def index_errors_service(client, index_name: str, date: str):
         for doc, emb in zip(search_docs, embeddings):
             doc["vector"] = emb
 
-            doc_id = f"{doc['date']}::{doc['filename']}::{doc.get('request_id', '')}"
-
             final_docs.append({
                 "_op_type": "index",
                 "_index": index_name,
-                "_id": doc_id,
+                "_id": doc['filename'],
                 "_source": doc,
             })
 
@@ -194,7 +201,7 @@ async def index_errors_service(client, index_name: str, date: str):
             "success": True,
             "index_name": index_name,
             "date": date,
-            "file_count": len(file_list),
+            "file_count": len([filename]),
             "indexed_count": success,
             "failed_count": failed,
             "message": None,
@@ -267,5 +274,39 @@ async def search_errors_service(
             "hybrid_count": 0,
             "rerank_count": 0,
             "results": [],
+            "message": str(e),
+        }
+        
+        
+def get_document_by_id(client, index_name: str, doc_id: str):
+    try:
+        resp = client.get(index=index_name, id=doc_id)
+
+        return {
+            "success": True,
+            "index_name": index_name,
+            "doc_id": doc_id,
+            "found": True,
+            "document": resp["_source"],
+            "message": None,
+        }
+
+    except Exception as e:
+        if hasattr(e, "status_code") and e.status_code == 404:
+            return {
+                "success": True,
+                "index_name": index_name,
+                "doc_id": doc_id,
+                "found": False,
+                "document": None,
+                "message": "Document not found",
+            }
+
+        return {
+            "success": False,
+            "index_name": index_name,
+            "doc_id": doc_id,
+            "found": False,
+            "document": None,
             "message": str(e),
         }

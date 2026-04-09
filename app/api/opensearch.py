@@ -15,7 +15,10 @@ from app.opensearch.schema import (
     IndexErrorResponse,
     IndexErrorRequest,
     SearchErrorResponse,
-    SearchErrorRequest
+    SearchErrorRequest,
+    GetDocumentResponse,
+    GetDocumentRequest,
+    
     )
 
 from app.application.opensearch_service import (
@@ -25,7 +28,8 @@ from app.application.opensearch_service import (
     update_index_mapping,
     get_index_properties,
     index_errors_service,
-    search_errors_service
+    search_errors_service,
+    get_document_by_id
     
 )
 
@@ -119,6 +123,7 @@ async def index_errors_api(req: IndexErrorRequest):
         client=client,
         index_name=req.index_name,
         date=req.date,
+        filename = req.filename
     )
 
     if not result["success"]:
@@ -148,3 +153,22 @@ async def search_errors_api(req: SearchErrorRequest):
         )
 
     return SearchErrorResponse(**result)
+
+
+@router.post("/document/get", response_model=GetDocumentResponse)
+def get_document_api(req: GetDocumentRequest):
+    client = get_opensearch_client()
+
+    result = get_document_by_id(
+        client=client,
+        index_name=req.index_name,
+        doc_id=req.doc_id,
+    )
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=500,
+            detail=result.get("message", "Failed to get document"),
+        )
+
+    return GetDocumentResponse(**result)
