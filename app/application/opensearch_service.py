@@ -1,6 +1,15 @@
 from opensearchpy import OpenSearch
 from opensearchpy.exceptions import NotFoundError, RequestError
-
+from app.utils.preprocess import (
+        bulk_insert,
+        embed_texts,
+        build_search_doc,
+        get_error_file,
+        get_error_list)
+from app.utils.search import (
+    search_similar,
+    rerank_documents
+)
 
 def create_index_raw(client: OpenSearch, index_name: str, body: dict) -> dict:
     if client.indices.exists(index=index_name):
@@ -137,5 +146,126 @@ def get_index_properties(client: OpenSearch, index_name: str) -> dict:
             "success": False,
             "index_name": index_name,
             "properties": {},
+            "message": str(e),
+        }
+        
+
+async def index_errors_service(client, index_name: str, date: str):
+    try:
+        file_list = get_error_list(date)
+
+        if not file_list:
+            return {
+                "success": True,
+                "index_name": index_name,
+                "date": date,
+                "file_count": 0,
+                "indexed_count": 0,
+                "failed_count": 0,
+                "message": "No files found",
+            }
+
+        files = get_error_file(date, file_list)
+
+        search_docs = [
+            build_search_doc(file=f, date=date, filename=file_list[i])
+            for i, f in enumerate(files)
+        ]
+
+        vector_text_list = [doc["vector_text"] for doc in search_docs]
+        embeddings = await embed_texts(vector_text_list)
+
+        final_docs = []
+        for doc, emb in zip(search_docs, embeddings):
+            doc["vector"] = emb
+
+            doc_id = f"{doc['date']}::{doc['filename']}::{doc.get('request_id', '')}"
+
+            final_docs.append({
+                "_op_type": "index",
+                "_index": index_name,
+                "_id": doc_id,
+                "_source": doc,
+            })
+
+        success, failed = bulk_insert(client, final_docs)
+
+        return {
+            "success": True,
+            "index_name": index_name,
+            "date": date,
+            "file_count": len(file_list),
+            "indexed_count": success,
+            "failed_count": failed,
+            "message": None,
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "index_name": index_name,
+            "date": date,
+            "file_count": 0,
+            "indexed_count": 0,
+            "failed_count": 0,
+            "message": str(e),
+        }
+        
+        
+async def search_errors_service(
+    client,
+    index_name: str,
+    query: str,
+    top_k: int,
+    rerank_top_n: int,
+):
+    try:
+        query_vector = (await embed_texts([query]))[0]
+
+        hybrid_hits = search_similar(
+            client=client,
+            index_name=index_name,
+            query=query,
+            query_vector=query_vector,
+            k=top_k,
+        )
+
+        source_docs = [hit["_source"] for hit in hybrid_hits]
+
+        reranked_docs = await rerank_documents(
+            query=query,
+            docs=source_docs,
+            top_n=rerank_top_n,
+        )
+
+        final_results = []
+        for doc in reranked_docs:
+            raw_doc = get_error_file(doc["date"], [doc["filename"]])[0]
+            final_results.append({
+                "date": doc["date"],
+                "filename": doc["filename"],
+                "request_id": doc.get("request_id"),
+                "rerank_score": doc.get("rerank_score"),
+                "raw_data": raw_doc,
+            })
+
+        return {
+            "success": True,
+            "query": query,
+            "index_name": index_name,
+            "hybrid_count": len(hybrid_hits),
+            "rerank_count": len(final_results),
+            "results": final_results,
+            "message": None,
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "query": query,
+            "index_name": index_name,
+            "hybrid_count": 0,
+            "rerank_count": 0,
+            "results": [],
             "message": str(e),
         }

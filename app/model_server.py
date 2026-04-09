@@ -40,15 +40,23 @@ def embed(req: EmbedRequest):
     return {
         "dense_vecs": result["dense_vecs"].tolist()
     }
-
-
+    
 @app.post("/rerank")
 def rerank(req: RerankRequest):
+    if not req.passages:
+        return {"scores": []}
+
     pairs = [[req.query, p] for p in req.passages]
     scores = reranker_model.compute_score(
         pairs,
         max_length=req.max_length,
     )
+
+    if isinstance(scores, (float, int)):
+        scores = [float(scores)]
+    else:
+        scores = [float(x) for x in scores]
+
     return {
-        "scores": [float(x) for x in scores]
+        "scores": scores
     }

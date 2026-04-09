@@ -47,3 +47,10 @@ OPENSEARCH_HTTP_COMPRESS = os.getenv("OPENSEARCH_VERIFY_CERTS", "true").lower() 
 
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
 RERANK_MODEL = os.getenv("RERANK_MODEL", "BAAI/bge-reranker-v2-m3")
+
+
+EMBEDDING_URL = os.getenv("EMBEDDING_URL", "")
+RERANK_URL = os.getenv("RERANK_URL", "")
+
+ERROR_LIST_URL = os.getenv("ERROR_LIST_URL", "")
+ERROR_FILE_URL = os.getenv("ERROR_FILE_URL", "")

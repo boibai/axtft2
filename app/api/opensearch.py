@@ -11,7 +11,11 @@ from app.opensearch.schema import (
     UpdateIndexMappingRequest,
     UpdateIndexResponse,
     GetIndexPropertiesRequest,
-    GetIndexPropertiesResponse
+    GetIndexPropertiesResponse,
+    IndexErrorResponse,
+    IndexErrorRequest,
+    SearchErrorResponse,
+    SearchErrorRequest
     )
 
 from app.application.opensearch_service import (
@@ -19,7 +23,10 @@ from app.application.opensearch_service import (
     delete_index,
     list_indices,
     update_index_mapping,
-    get_index_properties
+    get_index_properties,
+    index_errors_service,
+    search_errors_service
+    
 )
 
 router = APIRouter(prefix="/opensearch", tags=["opensearch"])
@@ -102,3 +109,42 @@ def get_index_properties_api(req: GetIndexPropertiesRequest):
         raise HTTPException(status_code=404, detail=result.get("message", "Index not found"))
 
     return GetIndexPropertiesResponse(**result)
+
+
+@router.post("/preprocess/errors", response_model=IndexErrorResponse)
+async def index_errors_api(req: IndexErrorRequest):
+    client = get_opensearch_client()
+
+    result = await index_errors_service(
+        client=client,
+        index_name=req.index_name,
+        date=req.date,
+    )
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=500,
+            detail=result.get("message", "Indexing failed"),
+        )
+
+    return IndexErrorResponse(**result)
+
+@router.post("/search", response_model=SearchErrorResponse)
+async def search_errors_api(req: SearchErrorRequest):
+    client = get_opensearch_client()
+
+    result = await search_errors_service(
+        client=client,
+        index_name=req.index_name,
+        query=req.query,
+        top_k=req.top_k,
+        rerank_top_n=req.rerank_top_n,
+    )
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=500,
+            detail=result.get("message", "Search failed"),
+        )
+
+    return SearchErrorResponse(**result)
