@@ -34,9 +34,12 @@ def search_similar(client, index_name: str, query: str, query_vector: list[float
             "hybrid": {
                 "queries": [
                     {
-                        "match": {
-                            "keywords": query
+                    {
+                        "multi_match": {
+                            "query": query,
+                            "fields": ["error_message^3", "keywords^2"]
                         }
+                    }
                     },
                     {
                         "knn": {

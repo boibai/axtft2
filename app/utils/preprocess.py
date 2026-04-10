@@ -23,7 +23,8 @@ def build_search_doc(file: dict, date: str, filename: str) -> dict:
 
     sections = []
     keyword_parts = []
-
+    error_message = file.get("input_text")
+    
     for i, cause in enumerate(cause_list, start=1):
         title = cause.get("title", "")
         cause_text = cause.get("cause", "")
@@ -34,6 +35,7 @@ def build_search_doc(file: dict, date: str, filename: str) -> dict:
             f"""[CAUSE {i}]
 title: {title}
 cause: {cause_text}
+evidence : {evidence}
 actionPlan:
 {format_action_plan(action_plan)}"""
         )
@@ -41,7 +43,7 @@ actionPlan:
         keyword_parts.append(title)
         keyword_parts.append(evidence)
 
-    vector_text = "\n\n".join(sections).strip()
+    vector_text = f"[ERROR MESSAGE]\n{error_message["message"]}\n\n"+"\n\n".join(sections).strip()
     keywords = " ".join(x for x in keyword_parts if x).strip()
 
     return {
@@ -50,7 +52,7 @@ actionPlan:
         "request_id": file.get("request_id"),
         "timestamp": file.get("timestamp"),
         "model_name": file.get("model_name"),
-        "error_message": file.get("error_message"),
+        "error_message": error_message["message"],
         "vector_text": vector_text,
         "keywords": keywords,
     }

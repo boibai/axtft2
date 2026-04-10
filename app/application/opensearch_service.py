@@ -68,7 +68,7 @@ def list_indices(client: OpenSearch) -> dict:
 
     indices = []
     for row in rows:
-        if not row.get("index").startswith("."):
+        if not row.get("index").startswith(".") and not row.get("index").startswith("top_"):
             indices.append({
                 "index_name": row.get("index"),
                 "health": row.get("health"),
